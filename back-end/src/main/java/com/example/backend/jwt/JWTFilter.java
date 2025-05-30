@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @Slf4j
-@WebFilter(filterName = "JWTFilter", urlPatterns = "/api/*")
+@WebFilter(filterName = "JWTFilter", urlPatterns = "/api/*",asyncSupported = true)
 public class JWTFilter implements Filter {
 
     @Override
@@ -31,7 +31,7 @@ public class JWTFilter implements Filter {
         String requestURI = request.getRequestURI();
 
         // 放行认证相关路径
-        if (requestURI.startsWith("/api/auth")) {
+        if (requestURI.startsWith("/api/auth")||requestURI.startsWith("/api/AI")) {
             chain.doFilter(request, response);
             return;
         }
