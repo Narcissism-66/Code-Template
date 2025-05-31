@@ -13,7 +13,7 @@ spring:
 
   ai:
     openai:
-      api-key: sk-y0Z0z1lhHxwzhJB8awQXG2Z6QpyyiEQyDhUpAzfbcxg59mSv
+      api-key: ${API-KEY-xiaoai}
       base-url: https://xiaoai.plus
       model: gpt-4o-mini
     chat:
