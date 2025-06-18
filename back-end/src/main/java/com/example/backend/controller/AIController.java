@@ -6,20 +6,23 @@ package com.example.backend.controller;
  * @Description:
  */
 
-import com.example.backend.config.Memory.JdbcChatMemoryRepository;
+
 import com.example.backend.entity.User;
 import com.example.backend.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -38,7 +41,8 @@ import java.util.Map;
 @RequestMapping("/api/AI/")
 public class AIController {
 
-    private final ChatClient chatClient;
+    @Autowired
+    OpenAiChatModel chatModel;
     @Autowired
     private JdbcChatMemoryRepository jdbcChatMemoryRepository;
     @Resource
@@ -46,10 +50,6 @@ public class AIController {
     @Resource
     UserService userService;
 
-
-    public AIController(ChatClient.Builder chatClientBuilder) {
-        this.chatClient = chatClientBuilder.build();
-    }
 
     private Prompt SetPrompt(String message,Integer userId){
         // 将用户消息转换为UserMessage对象
@@ -116,48 +116,31 @@ public class AIController {
     }
 
 
+
     //流式输出---在跨域里面需要配置异步操作（实现configureAsyncSupport）、JWT也需要配置asyncSupported = true
     @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE )
     public Flux<String> chat2(@RequestParam("message") String message,
                               @RequestParam("userId") Integer userId) {
         //创建矢量数据库
         AddVector(userId);
-        // 创建聊天记忆实例
+
         ChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(jdbcChatMemoryRepository)  // 使用注入的自定义repository
                 .maxMessages(20)
                 .build();
 
-        // 获取历史消息
-        List<Message> historyMessages = jdbcChatMemoryRepository.findByConversationId(userId.toString());
-        for (Message msg : historyMessages) {
-            chatMemory.add(userId.toString(), msg);
-        }
-
-        // 添加新消息
-        Message userMessage = new UserMessage(message);
-        chatMemory.add(userId.toString(), userMessage);
-
-        StringBuilder aiReplyBuilder = new StringBuilder();
+        ChatClient chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
 
         // 获取历史消息并生成回复
         Flux<String> aiResponseFlux = chatClient.prompt(SetPrompt(message,userId))
+                .user(message)
                 .messages(chatMemory.get(userId.toString()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, userId.toString()))
                 .advisors(new QuestionAnswerAdvisor(vectorStore))
                 .stream()
-                .content()
-                .doOnNext(aiReplyBuilder::append)
-                .doOnComplete(() -> {
-                    // 流式结束后，保存完整对话到数据库
-                    String fullReply = aiReplyBuilder.toString();
-                    Message aiMessage = new AssistantMessage(fullReply);
-                    chatMemory.add(userId.toString(), aiMessage);
-                    // 保存所有消息到数据库
-                    List<Message> allMessages = chatMemory.get(userId.toString());
-
-                    // 保存所有消息到数据库
-                    jdbcChatMemoryRepository.saveAll(userId.toString(), allMessages);
-                });
+                .content();
         return aiResponseFlux.delayElements(Duration.ofMillis(100));
     }
 }
