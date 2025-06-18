@@ -16,12 +16,12 @@ spring:
       api-key: ${API-KEY-xiaoai}
       base-url: https://xiaoai.plus
       model: gpt-4o-mini
-    chat:
+  chat:
       memory:
         repository:
           jdbc:
             initialize-schema: always
-            schema: classpath:/repository/schema-mysql.sql   #对话记忆存储
+            platform: mariadb
     vectorstore:
       neo4j:
         initialize-schema: true
