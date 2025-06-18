@@ -41,6 +41,9 @@ import java.util.Map;
 @RequestMapping("/api/AI/")
 public class AIController {
 
+//    private final ChatClient chatClient;
+
+
     @Autowired
     OpenAiChatModel chatModel;
     @Autowired
@@ -122,7 +125,11 @@ public class AIController {
     public Flux<String> chat2(@RequestParam("message") String message,
                               @RequestParam("userId") Integer userId) {
         //创建矢量数据库
+
         AddVector(userId);
+
+
+        // 创建聊天记忆实例
 
         ChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(jdbcChatMemoryRepository)  // 使用注入的自定义repository
@@ -134,11 +141,11 @@ public class AIController {
                 .build();
 
         // 获取历史消息并生成回复
-        Flux<String> aiResponseFlux = chatClient.prompt(SetPrompt(message,userId))
+
+        Flux<String> aiResponseFlux = chatClient
+                .prompt(SetPrompt(message,userId))
                 .user(message)
-                .messages(chatMemory.get(userId.toString()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, userId.toString()))
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
                 .stream()
                 .content();
         return aiResponseFlux.delayElements(Duration.ofMillis(100));
