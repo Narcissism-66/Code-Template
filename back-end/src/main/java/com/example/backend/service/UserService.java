@@ -8,7 +8,10 @@ package com.example.backend.service;
 
 import com.example.backend.entity.User;
 
+import java.util.List;
+
 public interface UserService {
     User getUserByAccountAndPassword(String account, String password);
     User getUserById(Integer id);
+    List<User> getAllUser();
 }

@@ -9,9 +9,13 @@ package com.example.backend.controller;
 
 import com.example.backend.entity.User;
 import com.example.backend.service.UserService;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -20,10 +24,13 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,23 +44,69 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/AI/")
 public class AIController {
 
-//    private final ChatClient chatClient;
-
-
     @Autowired
     OpenAiChatModel chatModel;
+
+    private ChatClient chatClient;
+
     @Autowired
     private JdbcChatMemoryRepository jdbcChatMemoryRepository;
+
     @Resource
     private VectorStore vectorStore;
+
     @Resource
     UserService userService;
 
+    public AIController(ChatClient.Builder chatClientBuilder) {
+        this.chatClient = chatClientBuilder.build();
+    }
 
+    //流式输出---在跨域里面需要配置异步操作（实现configureAsyncSupport）、JWT也需要配置asyncSupported = true
+    @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE )
+    public Flux<String> chat2(@RequestParam("message") String message,
+                              @RequestParam("userId") Integer userId) {
+        //初始化
+        Init();
+
+        // 获取历史消息并生成回复
+        Flux<String> aiResponseFlux = chatClient
+                .prompt(SetPrompt(message,userId))
+                .user(message)
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, userId.toString()))
+                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .stream()
+                .content();
+        return aiResponseFlux.delayElements(Duration.ofMillis(100));
+    }
+
+    /**
+     * 初始化，（记忆、数据库里面数据）
+     */
+    private void Init(){
+// 创建聊天记忆实例
+        ChatMemory chatMemory = MessageWindowChatMemory.builder()
+                .chatMemoryRepository(jdbcChatMemoryRepository)  // 使用注入的自定义repository
+                .maxMessages(20)
+                .build();
+
+         chatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
+    }
+
+    /**
+     * 设置提示词
+     * @param message
+     * @param userId
+     * @return
+     */
     private Prompt SetPrompt(String message,Integer userId){
         // 将用户消息转换为UserMessage对象
         Message userMessage = new UserMessage(message);
@@ -85,69 +138,27 @@ public class AIController {
         return new Prompt(List.of(userMessage, systemMessage));
     }
 
-    //例子
-    private void AddVector(Integer userId){
-        // Get all stories for the user
-        User user = userService.getUserById(userId);
+    /**
+     * 添加数据库里面的数据
+     */
+    @PostConstruct
+    private void SetVector(){
+        //1.数据库里面获取数据
+        List<User> userList=userService.getAllUser();
 
-        // Create a list to store all documents
-        List<Document> documents = new ArrayList<>();
+        //2.将数据转换为Document
+        List<Document> documents = userList.stream()
+                .map(user -> new Document(
+                        user.getUsername(),
+                        Map.of(
+                                "id", user.getId(),
+                                "account", user.getAccount()
+                        )
+                )).toList();
 
-        // Add each story to the vectorStore
-//        for (User user : users) {
-//            // Create a document with title and content
-//            String documentContent = String.format("Title: %s\nContent: %s",
-//                    story.getTitle(),
-//                    story.getContent());
-//
-//            // Create Document object with metadata
-//            Document document = new Document(documentContent, Map.of(
-//                    "storyId", story.getStoryId().toString(),
-//                    "userId", story.getUserId().toString(),
-//                    "time", story.getTime().toString()
-//            ));
-//            documents.add(document);
-//        }
-
-        String documentContent = String.format("username: %s\ntime: %s",
-                    user.getUsername(),
-                    user.getTime().toString());
-        Document document=new Document(documentContent, Map.of("userId", user.getId().toString()));
-        documents.add(document);
-        // Add all documents to vectorStore at once
+        //3.将Document添加到VectorStore中
         vectorStore.add(documents);
-    }
-
-
-
-    //流式输出---在跨域里面需要配置异步操作（实现configureAsyncSupport）、JWT也需要配置asyncSupported = true
-    @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE )
-    public Flux<String> chat2(@RequestParam("message") String message,
-                              @RequestParam("userId") Integer userId) {
-        //创建矢量数据库
-
-        AddVector(userId);
-
-
-        // 创建聊天记忆实例
-
-        ChatMemory chatMemory = MessageWindowChatMemory.builder()
-                .chatMemoryRepository(jdbcChatMemoryRepository)  // 使用注入的自定义repository
-                .maxMessages(20)
-                .build();
-
-        ChatClient chatClient = ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .build();
-
-        // 获取历史消息并生成回复
-
-        Flux<String> aiResponseFlux = chatClient
-                .prompt(SetPrompt(message,userId))
-                .user(message)
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, userId.toString()))
-                .stream()
-                .content();
-        return aiResponseFlux.delayElements(Duration.ofMillis(100));
+        //相似内容搜索
+        List<Document> results = this.vectorStore.similaritySearch(SearchRequest.builder().query("Spring").topK(5).build());
     }
 }

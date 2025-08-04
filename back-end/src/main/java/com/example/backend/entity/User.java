@@ -16,7 +16,7 @@ import java.util.Date;
 public class User {
     private Integer id;
     private String username,account,password,avatar,email;
-    private Date time;
+    private Integer time;
     public User(){};
 
     public Integer getId() {
@@ -67,15 +67,15 @@ public class User {
         this.email = email;
     }
 
-    public Date getTime() {
+    public Integer getTime() {
         return time;
     }
 
-    public void setTime(Date time) {
+    public void setTime(Integer time) {
         this.time = time;
     }
 
-    public User(Integer id, String username, String account, String password, String avatar, String email, Date time){
+    public User(Integer id, String username, String account, String password, String avatar, String email, Integer time){
         this.id=id;
         this.username=username;
         this.account=account;
