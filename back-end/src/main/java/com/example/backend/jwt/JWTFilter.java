@@ -8,7 +8,7 @@ package com.example.backend.jwt;
 
 import com.alibaba.fastjson.JSON;
 import com.auth0.jwt.interfaces.Claim;
-import com.example.backend.entity.RestBean;
+import com.example.backend.pojo.RestBean;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;

@@ -6,7 +6,7 @@ package com.example.backend.service;
  * @Description:
  */
 
-import com.example.backend.entity.User;
+import com.example.backend.pojo.entity.User;
 
 import java.util.List;
 

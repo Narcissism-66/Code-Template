@@ -6,7 +6,7 @@ package com.example.backend.mapper;
  * @Description:
  */
 
-import com.example.backend.entity.User;
+import com.example.backend.pojo.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
