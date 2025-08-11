@@ -67,6 +67,8 @@ public class AIController {
                               @RequestParam("userId") Integer userId) {
         //初始化
         Init();
+//        queryVectorByMessage();
+
 
         // 获取历史消息并生成回复
         Flux<String> aiResponseFlux = chatClient
@@ -133,10 +135,9 @@ public class AIController {
     }
 
     /**
-     * 添加数据库里面的数据
+     * 向redis里面添加数据
      */
-    @PostConstruct
-    private void SetVector(){
+    private void queryVectorByMessage(){
         //1.数据库里面获取数据
         List<User> userList=userService.getAllUser();
 
@@ -152,7 +153,5 @@ public class AIController {
 
         //3.将Document添加到VectorStore中
         vectorStore.add(documents);
-        //相似内容搜索
-        List<Document> results = this.vectorStore.similaritySearch(SearchRequest.builder().query("Spring").topK(5).build());
     }
 }
