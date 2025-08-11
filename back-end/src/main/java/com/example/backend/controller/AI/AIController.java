@@ -67,7 +67,7 @@ public class AIController {
                               @RequestParam("userId") Integer userId) {
         //初始化
         Init();
-//        queryVectorByMessage();
+        queryVectorByMessage();
 
 
         // 获取历史消息并生成回复
@@ -135,23 +135,29 @@ public class AIController {
     }
 
     /**
-     * 向redis里面添加数据
+     * 将数据库用户数据写入Redis向量库，用于RAG检索
      */
     private void queryVectorByMessage(){
-        //1.数据库里面获取数据
+        //1.从数据库获取所有用户数据
         List<User> userList=userService.getAllUser();
 
-        //2.将数据转换为Document
+        //2.将用户数据转换为向量文档
         List<Document> documents = userList.stream()
-                .map(user -> new Document(
-                        user.getUsername(),
-                        Map.of(
-                                "id", user.getId(),
+                .map(user -> Document.builder()
+                        // 文档唯一标识：用于精确删除、更新、去重
+                        .id("user_" + user.getId())
+                        // 正文内容：会被向量化，用于相似度检索（用户问问题时，AI会基于这个内容回答）
+                        .text(user.getUsername())
+                        // 元数据：附加信息，不参与向量化，用于业务分类、来源追踪、权限控制等
+                        .metadata(Map.of(
+                                "userId", user.getId(),
+                                "username", user.getUsername(),
                                 "account", user.getAccount()
-                        )
-                )).toList();
+                        ))
+                        .build())
+                .toList();
 
-        //3.将Document添加到VectorStore中
+        //3.将文档写入Redis向量库
         vectorStore.add(documents);
     }
 }

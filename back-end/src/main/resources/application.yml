@@ -28,7 +28,7 @@ spring:
         # 首次启动自动创建索引与 schema
         initialize-schema: true
         index-name: custom-index
-        prefix: kb
+#        prefix: kb   #redis里面键的前缀
 
 
 
