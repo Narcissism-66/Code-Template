@@ -22,5 +22,5 @@ import java.util.Date;
 public class User {
     private Integer id;
     private String username,account,password,avatar,email;
-    private Integer time;
+    private Date time;
 }

@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Date;
+
 @Data
 @Builder
 @AllArgsConstructor
@@ -18,5 +20,5 @@ import lombok.NoArgsConstructor;
 public class UserVO {
     private Integer id;
     private String username,account,password,avatar,email;
-    private Integer time;
+    private Date time;
 }

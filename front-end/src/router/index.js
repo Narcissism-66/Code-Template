@@ -19,10 +19,14 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: '首页',
-      component: () => import('../views/Home.vue'),
+      name: '导航',
+      component: () => import('../views/Navigator.vue'),
       children:[
-
+        {
+          path:'/',
+          name:"首页",
+          component:()=>import('../views/Home.vue')
+        }
       ]
     },
   ],
